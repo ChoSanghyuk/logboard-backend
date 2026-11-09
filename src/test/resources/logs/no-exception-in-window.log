@@ -1,0 +1,7 @@
+2026-11-08T09:00:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.App : start
+2026-11-08T09:00:01.000+09:00 ERROR 4242 --- [order-api] [main] c.f.App : boot hiccup
+java.lang.IllegalStateException: early
+	at com.foo.App.main(App.java:3)
+2026-11-08T14:30:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:30:00.000
+2026-11-08T14:32:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:00.000
+2026-11-08T14:35:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:35:00.000

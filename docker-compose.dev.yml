@@ -1,0 +1,21 @@
+# Local dev database. Start: docker-compose -f docker-compose.dev.yml up -d
+# Host port 5434 (5432/5433 are often taken by other local Postgres instances).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: logboard
+      POSTGRES_USER: logboard
+      POSTGRES_PASSWORD: logboard
+    ports:
+      - "5434:5432"
+    volumes:
+      - logboard-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logboard -d logboard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  logboard-pgdata:

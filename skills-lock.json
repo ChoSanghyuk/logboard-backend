@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "code-reviewer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-reviewer/SKILL.md",
+      "computedHash": "3fd9082cd005b58bd5e7adb981615f7ddaeae6e9043988b80bc55df58f3e05f0"
+    },
+    "java-architect": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/java-architect/SKILL.md",
+      "computedHash": "d141cdd2aad8b2ed84b5d9e6d6aa31ed4ab23fba4487a1d9bee4b8f79426fc11"
+    },
+    "spring-boot-engineer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spring-boot-engineer/SKILL.md",
+      "computedHash": "d2f0370bee86711b9a74ac7cd48ad2649c952d3b6744c46b9676b69d43ade1b8"
+    }
+  }
+}

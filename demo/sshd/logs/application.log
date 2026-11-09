@@ -1,0 +1,71 @@
+2026-11-08T14:30:00.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1000 200
+2026-11-08T14:30:02.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1001 200
+2026-11-08T14:30:04.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1002 200
+2026-11-08T14:30:06.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1003 200
+2026-11-08T14:30:08.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1004 200
+2026-11-08T14:30:10.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1005 200
+2026-11-08T14:30:12.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1006 200
+2026-11-08T14:30:14.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1007 200
+2026-11-08T14:30:16.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1008 200
+2026-11-08T14:30:18.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1009 200
+2026-11-08T14:30:20.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1010 200
+2026-11-08T14:30:22.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1011 200
+2026-11-08T14:30:24.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1012 200
+2026-11-08T14:30:26.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1013 200
+2026-11-08T14:30:28.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1014 200
+2026-11-08T14:30:30.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1015 200
+2026-11-08T14:30:32.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1016 200
+2026-11-08T14:30:34.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1017 200
+2026-11-08T14:30:36.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1018 200
+2026-11-08T14:30:38.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-2] c.e.demo.OrderController                 : GET /orders/1019 200
+2026-11-08T14:30:41.512+09:00 ERROR 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.PaymentClient                   : Payment gateway returned 503, giving up
+2026-11-08T14:31:10.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2000
+2026-11-08T14:31:12.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2001
+2026-11-08T14:31:14.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2002
+2026-11-08T14:31:16.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2003
+2026-11-08T14:31:18.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2004
+2026-11-08T14:31:20.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2005
+2026-11-08T14:31:22.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2006
+2026-11-08T14:31:24.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2007
+2026-11-08T14:31:26.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2008
+2026-11-08T14:31:28.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2009
+2026-11-08T14:31:30.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2010
+2026-11-08T14:31:32.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2011
+2026-11-08T14:31:34.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2012
+2026-11-08T14:31:36.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2013
+2026-11-08T14:31:38.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : POST /orders 201 id=2014
+2026-11-08T14:31:58.123+09:00 ERROR 4242 --- [demo-app] [http-nio-8080-exec-1] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] threw exception
+java.lang.NullPointerException: Cannot invoke "String.length()" because "customer.name" is null
+	at com.example.demo.order.OrderService.place(OrderService.java:42) ~[classes/:na]
+	at com.example.demo.order.OrderController.create(OrderController.java:27) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.2.jar:6.2]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+2026-11-08T14:32:00.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3000 200
+2026-11-08T14:32:03.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3001 200
+2026-11-08T14:32:06.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3002 200
+2026-11-08T14:32:09.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3003 200
+2026-11-08T14:32:12.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3004 200
+2026-11-08T14:32:15.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3005 200
+2026-11-08T14:32:18.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3006 200
+2026-11-08T14:32:21.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3007 200
+2026-11-08T14:32:24.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3008 200
+2026-11-08T14:32:27.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.OrderController                 : GET /orders/3009 200
+2026-11-08T14:33:10.004+09:00 ERROR 4242 --- [demo-app] [http-nio-8080-exec-1] c.e.demo.order.OrderRepository           : Saving order failed
+org.springframework.dao.DataIntegrityViolationException: could not execute statement
+	at org.springframework.orm.jpa.EntityManagerFactoryUtils.convertJpaAccessExceptionIfPossible(EntityManagerFactoryUtils.java:290)
+	at com.example.demo.order.OrderRepository.save(OrderRepository.java:18)
+Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "orders_pkey"
+  Detail: Key (id)=(2014) already exists.
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2725)
+	... 42 more
+2026-11-08T14:34:00.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:05.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:10.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:15.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:20.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:25.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:30.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:35.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:40.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200
+2026-11-08T14:34:45.000+09:00  INFO 4242 --- [demo-app] [http-nio-8080-exec-3] c.e.demo.OrderController                 : GET /health 200

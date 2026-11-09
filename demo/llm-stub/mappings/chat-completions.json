@@ -1,0 +1,21 @@
+{
+  "request": { "method": "POST", "url": "/v1/chat/completions" },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 800,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "id": "chatcmpl-demo",
+      "object": "chat.completion",
+      "model": "demo-model",
+      "choices": [ {
+        "index": 0,
+        "finish_reason": "stop",
+        "message": {
+          "role": "assistant",
+          "content": "## Cause\n`customer.name` is `null` when `OrderService.place` calls `length()` on it (OrderService.java:42).\n\n## Fix\nValidate the request (`@NotBlank name`) or guard the call:\n```java\nif (customer.getName() == null) throw new IllegalArgumentException(\"name required\");\n```\n\n*(Stub reply from the Logboard demo LLM.)*"
+        }
+      } ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: logboard
+  datasource:
+    url: ${LOGBOARD_DB_URL:jdbc:postgresql://localhost:5434/logboard}
+    username: ${LOGBOARD_DB_USERNAME:logboard}
+    password: ${LOGBOARD_DB_PASSWORD:logboard}
+  jackson:
+    time-zone: UTC   # api-contract: all response timestamps are UTC
+    default-property-inclusion: always   # api-contract: nullable fields are always sent, as null
+  ai:
+    mcp:
+      server:                # design §8: Streamable HTTP at /mcp, protected by McpTokenFilter
+        name: logboard
+        version: 0.0.1
+        type: SYNC
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+        capabilities:        # tools only
+          resource: false
+          prompt: false
+          completion: false
+        instructions: >-
+          Logboard collects exceptions from production Java servers. Errors a human marked
+          "developer needed" are in status DEV_REQUIRED. Workflow: list_dev_required_errors →
+          get_error_log (cropped stack trace, user note, LLM analysis) → fix the code →
+          terminate_error with a resolution summary.
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # schema is owned by Flyway
+
+server:
+  port: 8080
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true   # explicit (also silences springdoc's startup WARN); SPRINGDOC_API_DOCS_ENABLED=false turns it off
+
+logboard:
+  storage:
+    root: ${LOGBOARD_STORAGE_ROOT:./data}
+  crypto:
+    master-key: ${LOGBOARD_CRYPTO_MASTER_KEY:}  # required: blank fails startup
+  mcp:
+    token: ${LOGBOARD_MCP_TOKEN:}               # required: blank fails startup
+  crop:
+    before: 20
+    after: 10
+    expand-step: 50
+    max-lines: 2000   # a crop never exceeds this (unless the anchor entry alone is longer)

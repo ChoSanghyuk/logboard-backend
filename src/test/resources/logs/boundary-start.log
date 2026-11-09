@@ -1,0 +1,6 @@
+	at com.foo.Old.run(Old.java:1)
+	... 3 more
+2026-11-08T14:31:58.000+09:00 ERROR 4242 --- [order-api] [main] c.f.A : boom
+java.lang.RuntimeException: boom
+	at com.foo.A.run(A.java:3)
+2026-11-08T14:32:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:00.000

@@ -1,0 +1,5 @@
+2026-11-08T14:31:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:00.000
+2026-11-08T14:31:30.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:30.000
+2026-11-08T14:31:58.000+09:00 ERROR 4242 --- [order-api] [main] c.f.Big : alloc failed
+java.lang.OutOfMemoryError: Java heap space
+	at com.foo.Big.alloc(Big.java:7)

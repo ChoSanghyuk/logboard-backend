@@ -1,0 +1,5 @@
+logboard:
+  crypto:
+    master-key: test-master-key
+  mcp:
+    token: test-mcp-token-0123456789abcdef0123456789

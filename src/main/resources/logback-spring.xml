@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Spring Boot's console logging (plain, or structured with logging.structured.format.console=ecs|logstash|gelf),
+  with secrets masked (com.logboard.common.logging.MaskingEncoder). Containers log to stdout only.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>${CONSOLE_LOG_THRESHOLD}</level>
+        </filter>
+        <encoder class="com.logboard.common.logging.MaskingEncoder">
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <structuredFormat>${CONSOLE_LOG_STRUCTURED_FORMAT}</structuredFormat>
+            <charset>${CONSOLE_LOG_CHARSET}</charset>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

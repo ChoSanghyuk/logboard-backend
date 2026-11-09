@@ -1,0 +1,21 @@
+2026-11-08T14:31:50.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:50.000
+2026-11-08T14:31:51.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:51.000
+2026-11-08T14:31:52.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:52.000
+2026-11-08T14:31:53.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:53.000
+2026-11-08T14:31:54.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:31:54.000
+2026-11-08T14:31:58.000+09:00 ERROR 4242 --- [order-api] [main] c.f.OrderRepository : Save failed
+org.springframework.dao.DataIntegrityViolationException: could not execute statement
+	at org.springframework.orm.jpa.EntityManagerFactoryUtils.convert(EntityManagerFactoryUtils.java:290)
+	at com.foo.OrderRepository.save(OrderRepository.java:10)
+Caused by: org.hibernate.exception.ConstraintViolationException: could not execute statement
+	at org.hibernate.exception.internal.SQLStateConversionDelegate.convert(SQLStateConversionDelegate.java:97)
+	... 2 more
+Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "orders_pkey"
+  Detail: Key (id)=(42) already exists.
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2725)
+	... 5 more
+2026-11-08T14:32:00.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:00.000
+2026-11-08T14:32:01.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:01.000
+2026-11-08T14:32:02.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:02.000
+2026-11-08T14:32:03.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:03.000
+2026-11-08T14:32:04.000+09:00  INFO 4242 --- [order-api] [main] c.f.OrderService : tick 14:32:04.000

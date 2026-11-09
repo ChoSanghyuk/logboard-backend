@@ -1,0 +1,9 @@
+build/
+.gradle/
+data/
+demo/
+spec/
+.claude/
+*.md
+!README.md
+.git*

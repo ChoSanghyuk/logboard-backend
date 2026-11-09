@@ -1,0 +1,6 @@
+# Local development only (./gradlew bootRun enables this profile). Never use these samples in production.
+logboard:
+  crypto:
+    master-key: ${LOGBOARD_CRYPTO_MASTER_KEY:dev-only-master-key-change-me-0123456789abcdef}
+  mcp:
+    token: ${LOGBOARD_MCP_TOKEN:dev-only-mcp-token-change-me-0123456789abcdef}
