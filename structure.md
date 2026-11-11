@@ -76,7 +76,7 @@ src/main/java/com/logboard/
  │   ├─ LlmEndpoint / PromptTemplate (+Repository, Service, Controller, Upsert, Dto)   CRUD /api/llm-endpoints,
  │   │                        /api/prompts. Unique name, single isDefault (clearDefaultExcept before save), apiKey
  │   │                        encrypted + clearApiKey, baseUrl normalized (no trailing '/', no /v1), DELETE → 409 IN_USE
- │   ├─ LlmClient             RestClient (JDK HttpClient) → {baseUrl}/v1/chat/completions; per-call timeout; Bearer
+ │   ├─ LlmClient             RestClient (JDK HttpClient, HTTP/1.1: no h2c) → {baseUrl}/v1/chat/completions; per-call timeout; Bearer
  │   │                        only with apiKey; failures → LlmException(clear message)
  │   ├─ Analysis, AnalysisRepository, AnalysisDto   PENDING|DONE|FAILED
  │   ├─ AnalysisService       start: status machine START_ANALYSIS → render (PromptRenderer, one pass) → save

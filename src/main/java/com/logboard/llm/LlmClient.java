@@ -30,7 +30,9 @@ public class LlmClient {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final int MAX_BODY_IN_MESSAGE = 300;
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    // HTTP/1.1: the default (HTTP/2) sends h2c upgrade headers on http://, and vLLM/uvicorn then drops the body
+    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(10)).build();
 
     /** A failed call, with a message meant for the user. */
     public static class LlmException extends Exception {

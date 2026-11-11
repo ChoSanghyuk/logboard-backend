@@ -124,5 +124,11 @@ com.logboard
       fails with `KeyError: 'ContainerConfig'`. Workaround: `docker-compose down` (or `docker-compose rm -sf <service>`) first.
       Compose v2 (`docker compose`) is supported but optional
 
+### B11 — LLM calls over HTTP/1.1 (pm-notes-B11-llm-http11.md)
+- [x] `LlmClient` HttpClient built with `.version(HTTP_1_1)`: no h2c upgrade headers on `http://`, which made vLLM/uvicorn
+      drop the body (HTTP 400 `'loc': ('body',)`)
+- [x] `LlmClientTest.plainHttp11NoH2cUpgrade`: no `Upgrade` / `HTTP2-Settings` header, JSON body present (failed before the fix)
+- Verify: `./gradlew build` green.
+
 ## Definition of Done (per task)
 Tests are green. The contract is respected (or the PM is notified of a change). `structure.md` is updated if the structure changed.

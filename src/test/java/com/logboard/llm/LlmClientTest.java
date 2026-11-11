@@ -67,6 +67,18 @@ class LlmClientTest {
     }
 
     @Test
+    void plainHttp11NoH2cUpgrade() throws Exception {
+        // vLLM/uvicorn drops the body of an h2c upgrade request (B11)
+        wm.stubFor(post(PATH).willReturn(okJson(OK)));
+        client.chat(base(), "qwen", null, 5, "explain");
+        wm.verify(postRequestedFor(urlEqualTo(PATH))
+                .withoutHeader("Upgrade")
+                .withoutHeader("HTTP2-Settings")
+                .withRequestBody(equalToJson("""
+                        {"model":"qwen","messages":[{"role":"user","content":"explain"}]}""")));
+    }
+
+    @Test
     void timeout() {
         wm.stubFor(post(PATH).willReturn(okJson(OK).withFixedDelay(3000)));
         assertThatThrownBy(() -> client.chat(base(), "m", null, 1, "p"))
