@@ -49,6 +49,7 @@ public class AnalysisService {
             String rendered = PromptRenderer.render(prompt.getContent(), Map.of(
                     "errorLog", errorLogService.cropText(log.getId()),
                     "serverName", log.getServer().getName(),
+                    "host", log.getInstance().getHost(),
                     "errorTime", log.getRequestedTime()
                             .atZoneSameInstant(ZoneId.of(log.getServer().getTimezone()))
                             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),

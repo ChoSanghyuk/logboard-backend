@@ -14,14 +14,14 @@ import org.springframework.data.jpa.repository.Query;
 public interface ErrorLogRepository extends JpaRepository<ErrorLog, String>, JpaSpecificationExecutor<ErrorLog> {
 
     @Override
-    @EntityGraph(attributePaths = "server")
+    @EntityGraph(attributePaths = {"server", "instance"})
     Page<ErrorLog> findAll(Specification<ErrorLog> spec, Pageable pageable);
 
-    @EntityGraph(attributePaths = "server")
+    @EntityGraph(attributePaths = {"server", "instance"})
     Optional<ErrorLog> findWithServerById(String id);
 
     /** Row-locks the error log for a status or crop change. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT e FROM ErrorLog e JOIN FETCH e.server WHERE e.id = :id")
+    @Query("SELECT e FROM ErrorLog e JOIN FETCH e.server JOIN FETCH e.instance WHERE e.id = :id")
     Optional<ErrorLog> findForUpdate(String id);
 }

@@ -48,24 +48,42 @@ public class OpenApiNullableCustomizer implements OpenApiCustomizer {
     }
 
     /**
-     * Names of component schemas used directly as a request body. Assumes request DTOs have no nested DTO refs and
-     * are never also used as a response: revisit this if either changes.
+     * Names of component schemas used as a request body, plus the schemas they reference (properties and array
+     * items, e.g. ServerUpsert → InstanceUpsert). Assumes request DTOs are never also used as a response: revisit
+     * this if that changes.
      */
+    @SuppressWarnings("rawtypes")
     private static Set<String> requestSchemas(io.swagger.v3.oas.models.OpenAPI openApi) {
         Set<String> names = new LinkedHashSet<>();
         if (openApi.getPaths() == null) {
             return names;
         }
+        List<String> todo = new ArrayList<>();
         openApi.getPaths().values().forEach(path -> path.readOperations().forEach(op -> {
             if (op.getRequestBody() != null && op.getRequestBody().getContent() != null) {
                 op.getRequestBody().getContent().values().forEach(media -> {
                     if (media.getSchema() != null && media.getSchema().get$ref() != null) {
-                        String ref = media.getSchema().get$ref();
-                        names.add(ref.substring(ref.lastIndexOf('/') + 1));
+                        todo.add(media.getSchema().get$ref());
                     }
                 });
             }
         }));
+        while (!todo.isEmpty()) {
+            String ref = todo.removeLast();
+            String name = ref.substring(ref.lastIndexOf('/') + 1);
+            Schema schema = openApi.getComponents().getSchemas().get(name);
+            if (!names.add(name) || schema == null || schema.getProperties() == null) {
+                continue;
+            }
+            for (Object p : schema.getProperties().values()) {
+                Schema prop = (Schema) p;
+                if (prop.get$ref() != null) {
+                    todo.add(prop.get$ref());
+                } else if (prop.getItems() != null && prop.getItems().get$ref() != null) {
+                    todo.add(prop.getItems().get$ref());
+                }
+            }
+        }
         return names;
     }
 

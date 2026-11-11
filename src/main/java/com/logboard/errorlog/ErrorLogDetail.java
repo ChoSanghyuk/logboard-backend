@@ -8,13 +8,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-/** {@code ErrorLogSummary} + crop, candidates and resolution fields. Times are UTC. */
+/** {@code ErrorLogSummary} + crop, candidates, fetch failures and resolution fields. Times are UTC. */
 public record ErrorLogDetail(
         @Schema(requiredMode = REQUIRED, example = "20261108-001") String id,
         @Schema(requiredMode = REQUIRED) long serverId,
         @Schema(requiredMode = REQUIRED) String serverName,
         @Schema(requiredMode = REQUIRED, description = "IANA timezone of the server (also for soft-deleted servers), "
                 + "for displaying times", example = "Asia/Seoul") String serverTimezone,
+        @Schema(requiredMode = REQUIRED, description = "Instance the crop comes from") InstanceRef instance,
         @Schema(requiredMode = REQUIRED) OffsetDateTime requestedTime,
         @Schema(description = "Top-level exception class; null for an ERROR entry without a trace") String exceptionClass,
         String exceptionMessage,
@@ -26,12 +27,14 @@ public record ErrorLogDetail(
         ResolvedBy resolvedBy,
         @Schema(description = "When it was terminated (UTC); null until then") OffsetDateTime resolvedAt,
         @Schema(requiredMode = REQUIRED) CropDto crop,
-        @Schema(requiredMode = REQUIRED, description = "All candidates in the window, in line order")
-                List<CandidateDto> candidates,
+        @Schema(requiredMode = REQUIRED, description = "All candidates in the window over all fetched instances: "
+                + "by instance position, then line") List<CandidateDto> candidates,
+        @Schema(requiredMode = REQUIRED, description = "Instances that could not be read during the search; [] if none")
+                List<FetchFailure> fetchFailures,
         @Schema(description = "Newest analysis (any status); `null` if none (always present)") AnalysisDto latestAnalysis) {
 
     /**
-     * Line numbers are 1-based in the raw file. {@code expandStep} = logboard.crop.expand-step,
+     * Line numbers are 1-based in the raw copy of {@code instance}. {@code expandStep} = logboard.crop.expand-step,
      * {@code maxLines} = logboard.crop.max-lines (the UI disables expand when the crop has that many lines).
      */
     public record CropDto(
@@ -49,7 +52,9 @@ public record ErrorLogDetail(
             @Schema(requiredMode = REQUIRED) LineKind kind) {}
 
     public record CandidateDto(
-            @Schema(requiredMode = REQUIRED) int anchorLine,
+            @Schema(requiredMode = REQUIRED) long instanceId,
+            @Schema(requiredMode = REQUIRED, description = "Host of the candidate's instance") String host,
+            @Schema(requiredMode = REQUIRED, description = "Line in the raw copy of that instance") int anchorLine,
             @Schema(requiredMode = REQUIRED) OffsetDateTime time,
             String exceptionClass,
             String message) {}

@@ -18,6 +18,8 @@ import com.logboard.llm.AnalysisRepository;
 import com.logboard.fetch.SftpLogFetcher;
 import com.logboard.server.LogPatternPreset;
 import com.logboard.server.Server;
+import com.logboard.server.ServerInstance;
+import com.logboard.server.ServerInstanceRepository;
 import com.logboard.server.ServerService;
 import jakarta.persistence.criteria.Predicate;
 import java.io.IOException;
@@ -25,14 +27,17 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -41,9 +46,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Search (fetch → crop → persist), re-crop, confirm/discard, get and list (design §6). */
+/** Search (fetch all instances → scan each → crop → persist), re-crop, confirm/discard, get and list (design §6). */
 @Service
 public class ErrorLogService {
 
@@ -53,6 +59,7 @@ public class ErrorLogService {
     private final ErrorLogRepository repo;
     private final AnalysisRepository analyses;
     private final ServerService servers;
+    private final ServerInstanceRepository instances;
     private final SftpLogFetcher fetcher;
     private final ErrorLogIdGenerator ids;
     private final TransactionTemplate tx;
@@ -61,11 +68,13 @@ public class ErrorLogService {
     private final int expandStep;
     private final int maxLines;
 
-    public ErrorLogService(ErrorLogRepository repo, AnalysisRepository analyses, ServerService servers, SftpLogFetcher fetcher,
-            ErrorLogIdGenerator ids, TransactionTemplate tx, LogboardProperties props) {
+    public ErrorLogService(ErrorLogRepository repo, AnalysisRepository analyses, ServerService servers,
+            ServerInstanceRepository instances, SftpLogFetcher fetcher, ErrorLogIdGenerator ids, TransactionTemplate tx,
+            LogboardProperties props) {
         this.repo = repo;
         this.analyses = analyses;
         this.servers = servers;
+        this.instances = instances;
         this.fetcher = fetcher;
         this.ids = ids;
         this.tx = tx;
@@ -75,34 +84,66 @@ public class ErrorLogService {
         this.maxLines = props.crop().maxLines();
     }
 
-    /** Not transactional: the SFTP fetch must not hold a DB transaction. */
+    /**
+     * Fetches all active instances in parallel, scans each raw copy separately and crops around the candidate closest
+     * to errorTime over all of them (tie: lower instance position, then lower line). Instances that fail are kept as
+     * fetchFailures; all failed → 502. Not transactional: the SFTP fetch must not hold a DB transaction.
+     */
     public ErrorLogDetail search(SearchRequest req) {
         Server server = servers.get(req.serverId());
+        List<ServerInstance> instances = servers.activeInstances(server.getId());
         OffsetDateTime from = req.errorTime().minusMinutes(req.windowMin());
         OffsetDateTime to = req.errorTime().plusMinutes(req.windowMin());
-        FetchedLog fetched = fetcher.fetch(server, from, to);
-        Path raw = fetched.rawFile();
+        List<SftpLogFetcher.Outcome> outcomes = fetcher.fetchAll(server, instances, from, to);
+        List<FetchFailure> failures = outcomes.stream().filter(o -> o.log() == null)
+                .map(o -> FetchFailure.of(o.instance(), o.error())).toList();
+        List<SftpLogFetcher.Outcome> fetched = outcomes.stream().filter(o -> o.log() != null).toList();
+        if (fetched.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "FETCH_FAILED", failures.stream()
+                    .map(f -> f.host() + ":" + f.sshPort() + ": " + f.message()).collect(Collectors.joining("; ")),
+                    Map.of("failures", failures));
+        }
         try {
-            List<FileSegment> segments = fetched.sources().stream().filter(s -> s.lineCount() > 0)
-                    .map(s -> new FileSegment(s.firstLine(), s.date())).toList();
-            CropEngine.Scan scan = engine.scan(raw, parser(server), segments, from, to);
-            Candidate anchor = scan.closestTo(req.errorTime()).orElse(null);
+            LogEntryParser parser = parser(server);
+            Map<Long, CropEngine.Scan> scans = new LinkedHashMap<>();
+            Map<Long, RawFile> rawFiles = new LinkedHashMap<>();
+            List<Candidate> pooled = new ArrayList<>(); // by instance position, then line
+            for (SftpLogFetcher.Outcome o : fetched) {
+                long instanceId = o.instance().getId();
+                List<FileSegment> segments = o.log().sources().stream().filter(src -> src.lineCount() > 0)
+                        .map(src -> new FileSegment(src.firstLine(), src.date())).toList();
+                CropEngine.Scan scan = engine.scan(o.log().rawFile(), parser, segments, from, to);
+                List<Candidate> tagged = scan.candidates().stream().map(c -> c.withInstance(instanceId)).toList();
+                scans.put(instanceId, new CropEngine.Scan(scan.totalLines(), tagged));
+                rawFiles.put(instanceId, new RawFile(relative(o.log().rawFile()), scan.totalLines()));
+                pooled.addAll(tagged);
+            }
+            Candidate anchor = pooled.stream() // min keeps the first of equals: lower position, then lower line
+                    .min(Comparator.comparing((Candidate c) -> Duration.between(c.time(), req.errorTime()).abs()))
+                    .orElse(null);
             if (anchor == null) {
-                Files.deleteIfExists(raw);
-                Files.deleteIfExists(FetchedLog.metaPath(raw));
+                for (SftpLogFetcher.Outcome o : fetched) {
+                    Files.deleteIfExists(o.log().rawFile());
+                    Files.deleteIfExists(FetchedLog.metaPath(o.log().rawFile()));
+                }
                 Map<String, Object> details = new LinkedHashMap<>();
                 details.put("errorTime", req.errorTime());
                 details.put("windowMin", req.windowMin());
                 details.put("from", from);
                 details.put("to", to);
+                details.put("searchedInstances", fetched.stream().map(o -> InstanceRef.of(o.instance())).toList());
+                details.put("failures", failures);
                 throw new ApiException(HttpStatus.NOT_FOUND, "NO_EXCEPTION_FOUND",
                         "No exception found between " + from + " and " + to, details);
             }
-            Crop crop = engine.crop(raw, scan, anchor);
-            String rawPath = root.toAbsolutePath().relativize(raw.toAbsolutePath()).toString();
+            ServerInstance instance = fetched.stream().map(SftpLogFetcher.Outcome::instance)
+                    .filter(i -> i.getId().equals(anchor.instanceId())).findFirst().orElseThrow();
+            RawFile raw = rawFiles.get(anchor.instanceId());
+            Crop crop = engine.crop(root.resolve(raw.path()), scans.get(anchor.instanceId()), anchor);
             return tx.execute(status -> {
-                ErrorLog log = new ErrorLog(ids.next(), server, req.errorTime(), req.windowMin(), rawPath,
-                        scan.totalLines(), toJson(scan.candidates()));
+                ErrorLog log = new ErrorLog(ids.next(), server, instance, req.errorTime(), req.windowMin(), raw.path(),
+                        raw.totalLines(), JSON.writeValueAsString(pooled), JSON.writeValueAsString(rawFiles),
+                        JSON.writeValueAsString(failures));
                 setCrop(log, crop, anchor);
                 repo.saveAndFlush(log);
                 writeCropFile(log.getId(), crop);
@@ -141,33 +182,45 @@ public class ErrorLogService {
         return new ErrorLogPage(result.map(ErrorLogSummary::of).getContent(), result.getTotalElements(), page, size);
     }
 
-    /** Re-crop from the stored raw copy (no re-download). Only while CROPPED. */
+    /**
+     * Re-crop from the stored raw copies (no re-download). Only while CROPPED. {@code anchorLine} (+ optional
+     * {@code instanceId}, default the current instance) switches candidate, moving the crop to that instance's raw
+     * copy; expand works within the current instance.
+     */
     @Transactional
     public ErrorLogDetail recrop(String id, CropRequest req) {
         ErrorLog log = repo.findForUpdate(id).orElseThrow(() -> notFound(id));
         ErrorLogStatusMachine.apply(log, Action.RECROP);
+        if (req.anchorLine() == null && req.instanceId() != null) {
+            throw invalid("instanceId", "Only together with anchorLine");
+        }
         if (req.anchorLine() == null && req.expandBefore() == null && req.expandAfter() == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Request validation failed",
-                    Map.of("fields", Map.of("anchorLine", "Give expandBefore, expandAfter or anchorLine")));
+            throw invalid("anchorLine", "Give expandBefore, expandAfter or anchorLine");
         }
         List<Candidate> candidates = fromJson(log.getCandidates());
-        CropEngine.Scan scan = new CropEngine.Scan(log.getTotalLines(), candidates);
-        Path raw = root.resolve(log.getRawFilePath());
         try {
             Candidate anchor;
             int start = log.getCropStartLine();
             int end = log.getCropEndLine();
             if (req.anchorLine() != null) {
-                anchor = scan.at(req.anchorLine()).orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
-                        "VALIDATION_FAILED", "Request validation failed", Map.of("fields", Map.of("anchorLine",
-                                "Not a candidate. Candidates: " + candidates.stream().map(Candidate::anchorLine).toList()))));
-                Crop switched = engine.crop(raw, scan, anchor);
+                long instanceId = req.instanceId() != null ? req.instanceId() : log.getInstance().getId();
+                anchor = candidates.stream()
+                        .filter(c -> c.instanceId() == instanceId && c.anchorLine() == req.anchorLine())
+                        .findFirst().orElseThrow(() -> invalid("anchorLine", "Not a candidate of instance "
+                                + instanceId + ". Candidates (instanceId:anchorLine): " + candidates.stream()
+                                .map(c -> c.instanceId() + ":" + c.anchorLine()).toList()));
+                if (instanceId != log.getInstance().getId()) {
+                    RawFile raw = rawFiles(log).get(instanceId);
+                    log.setInstance(instances.findById(instanceId).orElseThrow(), raw.path(), raw.totalLines());
+                }
+                Crop switched = engine.crop(root.resolve(log.getRawFilePath()), scan(log, candidates), anchor);
                 start = switched.startLine();
                 end = switched.endLine();
             } else {
-                anchor = scan.at(log.getAnchorLine()).orElseThrow();
+                anchor = candidates.stream().filter(c -> c.instanceId().equals(log.getInstance().getId())
+                        && c.anchorLine() == log.getAnchorLine()).findFirst().orElseThrow();
             }
-            Crop crop = engine.expand(raw, scan, anchor, start, end,
+            Crop crop = engine.expand(root.resolve(log.getRawFilePath()), scan(log, candidates), anchor, start, end,
                     req.expandBefore() == null ? 0 : req.expandBefore(),
                     req.expandAfter() == null ? 0 : req.expandAfter());
             setCrop(log, crop, anchor);
@@ -176,6 +229,12 @@ public class ErrorLogService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** Scan result of the current instance's raw copy. */
+    private static CropEngine.Scan scan(ErrorLog log, List<Candidate> all) {
+        return new CropEngine.Scan(log.getTotalLines(),
+                all.stream().filter(c -> c.instanceId().equals(log.getInstance().getId())).toList());
     }
 
     @Transactional
@@ -277,14 +336,18 @@ public class ErrorLogService {
     private ErrorLogDetail detail(ErrorLog e, List<Crop.Line> lines) {
         CropDto crop = new CropDto(e.getCropStartLine(), e.getCropEndLine(), e.getAnchorLine(), e.getTotalLines(),
                 expandStep, maxLines, lines.stream().map(l -> new CropLineDto(l.no(), l.text(), l.kind())).toList());
-        List<CandidateDto> candidates = fromJson(e.getCandidates()).stream()
-                .map(c -> new CandidateDto(c.anchorLine(), c.time(), c.exceptionClass(), c.message()))
+        List<Candidate> stored = fromJson(e.getCandidates());
+        Map<Long, String> hosts = instances.findAllById(stored.stream().map(Candidate::instanceId).distinct().toList())
+                .stream().collect(Collectors.toMap(ServerInstance::getId, ServerInstance::getHost));
+        List<CandidateDto> candidates = stored.stream()
+                .map(c -> new CandidateDto(c.instanceId(), hosts.get(c.instanceId()), c.anchorLine(), c.time(),
+                        c.exceptionClass(), c.message()))
                 .toList();
         return new ErrorLogDetail(e.getId(), e.getServer().getId(), e.getServer().getName(), e.getServer().getTimezone(),
-                e.getRequestedTime(), e.getExceptionClass(), e.getExceptionMessage(), e.getStatus(),
+                InstanceRef.of(e.getInstance()), e.getRequestedTime(), e.getExceptionClass(), e.getExceptionMessage(), e.getStatus(),
                 e.getCreatedAt(), e.getWindowMin(), e.getNote(), e.getResolution(), e.getResolvedBy(),
                 e.getResolvedAt(),
-                crop, candidates,
+                crop, candidates, Arrays.asList(JSON.readValue(e.getFetchFailures(), FetchFailure[].class)),
                 analyses.findFirstByErrorLogIdOrderByCreatedAtDescIdDesc(e.getId()).map(AnalysisDto::of).orElse(null));
     }
 
@@ -295,8 +358,17 @@ public class ErrorLogService {
         return new LogEntryParser(header, ZoneId.of(s.getTimezone()));
     }
 
-    private static String toJson(List<Candidate> candidates) {
-        return JSON.writeValueAsString(candidates);
+    private String relative(Path p) {
+        return root.toAbsolutePath().relativize(p.toAbsolutePath()).toString();
+    }
+
+    private static Map<Long, RawFile> rawFiles(ErrorLog log) {
+        return JSON.readValue(log.getRawFiles(), new TypeReference<Map<Long, RawFile>>() {});
+    }
+
+    private static ApiException invalid(String field, String message) {
+        return new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "Request validation failed",
+                Map.of("fields", Map.of(field, message)));
     }
 
     private static List<Candidate> fromJson(String json) {

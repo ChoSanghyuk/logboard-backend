@@ -1,6 +1,7 @@
 package com.logboard.server;
 
 import com.logboard.common.SecretCipher;
+import com.logboard.server.ConnectionTestResult.InstanceTestResult;
 import jakarta.annotation.PreDestroy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -13,7 +14,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.AttributeRepository;
@@ -30,19 +38,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * SSH/SFTP access to registered servers (Apache MINA SSHD): {@link #withSftp} and the connection test.
+ * SSH/SFTP access to server instances (Apache MINA SSHD): {@link #withSftp} and the connection test.
  * Host keys: trust on first use. The key is checked during key exchange, before any password is sent; the first
- * successful login pins its SHA256 fingerprint on the server, and a different key later fails with a clear message.
+ * successful login pins its SHA256 fingerprint on the instance, and a different key later fails with a clear message.
  */
 @Component
 public class SshConnector {
 
     static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
+    /** Max SSH connections one search or connection test opens at the same time. */
+    static final int MAX_PARALLEL = 8;
 
     private static final AttributeRepository.AttributeKey<HostKeyCheck> HOST_KEY = new AttributeRepository.AttributeKey<>();
 
     private final SecretCipher cipher;
-    private final ServerRepository servers;
+    private final ServerInstanceRepository instances;
     private final Duration timeout;
     private final SshClient client;
 
@@ -61,13 +71,13 @@ public class SshConnector {
     }
 
     @Autowired
-    public SshConnector(SecretCipher cipher, ServerRepository servers) {
-        this(cipher, servers, DEFAULT_TIMEOUT);
+    public SshConnector(SecretCipher cipher, ServerInstanceRepository instances) {
+        this(cipher, instances, DEFAULT_TIMEOUT);
     }
 
-    SshConnector(SecretCipher cipher, ServerRepository servers, Duration timeout) {
+    SshConnector(SecretCipher cipher, ServerInstanceRepository instances, Duration timeout) {
         this.cipher = cipher;
-        this.servers = servers;
+        this.instances = instances;
         this.timeout = timeout;
         this.client = SshClient.setUpDefaultClient();
         client.setServerKeyVerifier((session, address, key) -> {
@@ -89,19 +99,44 @@ public class SshConnector {
     }
 
     /** Connect, authenticate, SFTP-stat the logPath. Every failure becomes {@code ok=false} with a clear message. */
-    public ConnectionTestResult test(Server server) {
+    public InstanceTestResult test(ServerInstance server) {
         try {
             return withSftp(server, sftp -> {
                 SftpClient.Attributes attrs = sftp.stat(server.getLogPath());
                 if (!attrs.isRegularFile()) {
-                    return new ConnectionTestResult(false,
-                            "Connected, but logPath is not a regular file: " + server.getLogPath(), false, null);
+                    return InstanceTestResult.of(server, false,
+                            "Connected, but logPath is not a regular file: " + server.getLogPath(), null);
                 }
-                return new ConnectionTestResult(true, "Connected to " + target(server) + ". Log file found ("
-                        + attrs.getSize() + " bytes). Host key " + server.getHostKeyFingerprint(), true, attrs.getSize());
+                return InstanceTestResult.of(server, true, "Connected to " + target(server) + ". Log file found ("
+                        + attrs.getSize() + " bytes). Host key " + server.getHostKeyFingerprint(), attrs.getSize());
             });
         } catch (SshFailure e) {
-            return ConnectionTestResult.failed(e.getMessage());
+            return InstanceTestResult.of(server, false, e.getMessage(), null);
+        }
+    }
+
+    /**
+     * Runs {@code work} for every item in parallel (at most {@link #MAX_PARALLEL} at once) and waits for all.
+     * Results are in input order. An exception from {@code work} is rethrown after all items finished.
+     */
+    public static <T, R> List<R> inParallel(List<T> items, Function<T, R> work) {
+        if (items.size() == 1) {
+            return List.of(work.apply(items.getFirst()));
+        }
+        try (ExecutorService pool = Executors.newFixedThreadPool(Math.min(items.size(), MAX_PARALLEL))) {
+            List<Future<R>> futures = items.stream().map(i -> pool.submit(() -> work.apply(i))).toList();
+            List<R> results = new ArrayList<>(items.size());
+            for (Future<R> f : futures) {
+                try {
+                    results.add(f.get());
+                } catch (ExecutionException e) {
+                    throw e.getCause() instanceof RuntimeException re ? re : new IllegalStateException(e.getCause());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted", e);
+                }
+            }
+            return results;
         }
     }
 
@@ -122,9 +157,9 @@ public class SshConnector {
      * Connects, authenticates, opens SFTP and runs {@code work}; closes everything afterwards.
      * @throws SshFailure for every failure (timeout, refused, unknown host, auth, SFTP error), with a clear message
      */
-    public <T> T withSftp(Server server, SftpWork<T> work) {
+    public <T> T withSftp(ServerInstance server, SftpWork<T> work) {
         if (server.getSecretEnc() == null) {
-            throw new SshFailure("No password or private key stored for this server");
+            throw new SshFailure("No password or private key stored for this instance");
         }
         String step = "connect";
         HostKeyCheck hostKey = new HostKeyCheck(server.getHostKeyFingerprint());
@@ -156,7 +191,7 @@ public class SshConnector {
             if (hostKey.mismatch()) {
                 throw new SshFailure("Host key of " + server.getHost() + ":" + server.getSshPort() + " changed: trusted "
                         + hostKey.expected + ", but the server presented " + hostKey.presented + ". If the server was "
-                        + "reinstalled, reset the host key for this server and test again; otherwise the connection "
+                        + "reinstalled, reset the host key for this instance and test again; otherwise the connection "
                         + "may be intercepted. No credentials were sent.");
             }
             throw new SshFailure(describe(e, step, target(server), server));
@@ -167,21 +202,21 @@ public class SshConnector {
         }
     }
 
-    /** Trust on first use. Unsaved servers (no id) are only updated in memory. */
-    private void pin(Server server, String fingerprint) {
-        if (server.getId() != null && servers != null) {
-            servers.pinHostKey(server.getId(), fingerprint);
+    /** Trust on first use. Unsaved instances (no id) are only updated in memory. */
+    private void pin(ServerInstance server, String fingerprint) {
+        if (server.getId() != null && instances != null) {
+            instances.pinHostKey(server.getId(), fingerprint);
         }
         server.setHostKeyFingerprint(fingerprint);
     }
 
-    private static String target(Server server) {
+    private static String target(ServerInstance server) {
         return server.getUsername() + "@" + server.getHost() + ":" + server.getSshPort();
     }
 
-    private static Iterable<KeyPair> loadKey(Server server, String privateKey)
+    private static Iterable<KeyPair> loadKey(ServerInstance server, String privateKey)
             throws IOException, GeneralSecurityException {
-        Iterable<KeyPair> keys = SecurityUtils.loadKeyPairIdentities(null, NamedResource.ofName(server.getName()),
+        Iterable<KeyPair> keys = SecurityUtils.loadKeyPairIdentities(null, NamedResource.ofName(server.getHost()),
                 new ByteArrayInputStream(privateKey.getBytes(StandardCharsets.UTF_8)), null);
         if (keys == null || !keys.iterator().hasNext()) {
             throw new GeneralSecurityException("no key found");
@@ -189,7 +224,7 @@ public class SshConnector {
         return keys;
     }
 
-    private String describe(Exception e, String step, String target, Server server) {
+    private String describe(Exception e, String step, String target, ServerInstance server) {
         if (isTimeout(e)) {
             return "Timed out after " + timeout.toSeconds() + "s ("
                     + (step.equals("connect") ? "connecting to " : "talking to ") + target + ")";

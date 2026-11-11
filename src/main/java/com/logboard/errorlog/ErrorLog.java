@@ -1,6 +1,7 @@
 package com.logboard.errorlog;
 
 import com.logboard.server.Server;
+import com.logboard.server.ServerInstance;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -30,6 +31,11 @@ public class ErrorLog implements Persistable<String> {
     @JoinColumn(name = "server_id")
     private Server server;
 
+    /** Instance whose raw copy holds the current anchor/crop ({@code rawFilePath}, {@code totalLines}, lines). */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "instance_id")
+    private ServerInstance instance;
+
     private OffsetDateTime requestedTime;
     private int windowMin;
     /** Relative to {@code logboard.storage.root}. */
@@ -39,8 +45,12 @@ public class ErrorLog implements Persistable<String> {
     private int anchorLine;
     private int anchorEndLine;
     private int totalLines;
-    /** JSON array of {@link com.logboard.crop.Candidate}. */
+    /** JSON array of {@link com.logboard.crop.Candidate} (of all instances, each with its instanceId). */
     private String candidates;
+    /** JSON object instanceId → {@link RawFile}: one raw copy per fetched instance. */
+    private String rawFiles;
+    /** JSON array of {@link FetchFailure}; "[]" if every instance was fetched. */
+    private String fetchFailures;
     private String exceptionClass;
     private String exceptionMessage;
 
@@ -67,15 +77,18 @@ public class ErrorLog implements Persistable<String> {
 
     protected ErrorLog() {}
 
-    ErrorLog(String id, Server server, OffsetDateTime requestedTime, int windowMin, String rawFilePath,
-            int totalLines, String candidates) {
+    ErrorLog(String id, Server server, ServerInstance instance, OffsetDateTime requestedTime, int windowMin,
+            String rawFilePath, int totalLines, String candidates, String rawFiles, String fetchFailures) {
         this.id = id;
         this.server = server;
+        this.instance = instance;
         this.requestedTime = requestedTime;
         this.windowMin = windowMin;
         this.rawFilePath = rawFilePath;
         this.totalLines = totalLines;
         this.candidates = candidates;
+        this.rawFiles = rawFiles;
+        this.fetchFailures = fetchFailures;
         this.status = ErrorStatus.CROPPED;
         this.isNew = true;
     }
@@ -94,6 +107,7 @@ public class ErrorLog implements Persistable<String> {
     @Override
     public String getId() { return id; }
     public Server getServer() { return server; }
+    public ServerInstance getInstance() { return instance; }
     public OffsetDateTime getRequestedTime() { return requestedTime; }
     public int getWindowMin() { return windowMin; }
     public String getRawFilePath() { return rawFilePath; }
@@ -103,6 +117,8 @@ public class ErrorLog implements Persistable<String> {
     public int getAnchorEndLine() { return anchorEndLine; }
     public int getTotalLines() { return totalLines; }
     public String getCandidates() { return candidates; }
+    public String getRawFiles() { return rawFiles; }
+    public String getFetchFailures() { return fetchFailures; }
     public String getExceptionClass() { return exceptionClass; }
     public String getExceptionMessage() { return exceptionMessage; }
     public ErrorStatus getStatus() { return status; }
@@ -117,6 +133,13 @@ public class ErrorLog implements Persistable<String> {
     public void setResolvedAt(OffsetDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+
+    /** Moves the crop to another instance's raw copy (candidate switch). */
+    void setInstance(ServerInstance instance, String rawFilePath, int totalLines) {
+        this.instance = instance;
+        this.rawFilePath = rawFilePath;
+        this.totalLines = totalLines;
+    }
 
     /** Sets the crop range and the anchor candidate it is built around. */
     void setCrop(int startLine, int endLine, int anchorLine, int anchorEndLine, String exceptionClass,

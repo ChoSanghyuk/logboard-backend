@@ -3,11 +3,13 @@ package com.logboard.fetch;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.logboard.common.ApiException;
 import com.logboard.server.AuthType;
+import com.logboard.server.InstanceUpsert;
 import com.logboard.server.Server;
+import com.logboard.server.ServerInstance;
 import com.logboard.server.ServerService;
 import com.logboard.server.ServerUpsert;
+import com.logboard.server.SshConnector.SshFailure;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -22,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -108,20 +109,31 @@ class SftpLogFetcherIntegrationTest {
         jdbc.update("DELETE FROM servers");
     }
 
-    Server server(String password, String logPath, String rotatedPattern) {
-        long id = servers.create(new ServerUpsert("srv-" + System.nanoTime(), sshd.getHost(), sshd.getMappedPort(2222),
-                "logboard", AuthType.PASSWORD, password, null, logPath, rotatedPattern, "SPRING_BOOT_3", null,
-                "Asia/Seoul", "EUC-KR")).id();
-        return servers.get(id);
+    record Target(Server server, ServerInstance instance) {}
+
+    Target server(String password, String logPath, String rotatedPattern) {
+        long id = servers.create(new ServerUpsert("srv-" + System.nanoTime(), List.of(new InstanceUpsert(null,
+                sshd.getHost(), sshd.getMappedPort(2222), logPath, "logboard", AuthType.PASSWORD, password, null)),
+                rotatedPattern, "SPRING_BOOT_3", null, "Asia/Seoul", "EUC-KR")).id();
+        return target(id);
+    }
+
+    Target target(long serverId) {
+        return new Target(servers.get(serverId), servers.activeInstances(serverId).getFirst());
+    }
+
+    FetchedLog fetch(Target t, OffsetDateTime from, OffsetDateTime to) {
+        return fetcher.fetch(t.server(), t.instance(), from, to);
     }
 
     @Test
     void mergesRotatedAndActiveFilesOldestFirst() throws Exception {
-        Server s = server("ssh-pw", "/logs/app.log", PATTERN);
+        Target s = server("ssh-pw", "/logs/app.log", PATTERN);
 
-        FetchedLog log = fetcher.fetch(s, MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5));
+        FetchedLog log = fetch(s, MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5));
 
-        assertThat(log.rawFile().getParent()).isEqualTo(ROOT.resolve("raw").resolve(String.valueOf(s.getId())));
+        assertThat(log.rawFile().getParent()).isEqualTo(ROOT.resolve("raw").resolve(String.valueOf(s.server().getId()))
+                .resolve(String.valueOf(s.instance().getId())));
         assertThat(log.rawFile().getFileName().toString()).matches("\\d{14}-app\\.log");
         assertThat(Files.readAllLines(log.rawFile())).containsExactly(
                 "R0-1", "R0-2", "R2 한글", "R10", "T0", "A1 에러", "A2");
@@ -140,9 +152,9 @@ class SftpLogFetcherIntegrationTest {
 
     @Test
     void realServerNamingMergesPreviousDayIndexesThenActiveFile() throws Exception {
-        Server s = server("ssh-pw", "/real/application.log", "application-%d{yyyy-MM-dd}-%i.log.gz");
+        Target s = server("ssh-pw", "/real/application.log", "application-%d{yyyy-MM-dd}-%i.log.gz");
 
-        FetchedLog log = fetcher.fetch(s, MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5));
+        FetchedLog log = fetch(s, MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5));
 
         assertThat(log.rawFile().getFileName().toString()).matches("\\d{14}-application\\.log");
         assertThat(Files.readAllLines(log.rawFile())).containsExactly("P1-a", "P1-b", "P2", "TODAY");
@@ -156,7 +168,7 @@ class SftpLogFetcherIntegrationTest {
 
     @Test
     void missingActiveFileIsToleratedWhenRotatedFilesMatch() throws Exception {
-        FetchedLog log = fetcher.fetch(server("ssh-pw", "/logs/gone.log", PATTERN),
+        FetchedLog log = fetch(server("ssh-pw", "/logs/gone.log", PATTERN),
                 MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5));
         assertThat(log.activeFileMissing()).isTrue();
         assertThat(log.sources()).extracting(FetchedLog.Source::remotePath).containsExactly(
@@ -168,29 +180,29 @@ class SftpLogFetcherIntegrationTest {
 
     @Test
     void withoutRotatedPatternOnlyTheActiveFileIsFetched() throws Exception {
-        FetchedLog log = fetcher.fetch(server("ssh-pw", "/logs/app.log", null), MIDNIGHT, MIDNIGHT.plusMinutes(5));
+        FetchedLog log = fetch(server("ssh-pw", "/logs/app.log", null), MIDNIGHT, MIDNIGHT.plusMinutes(5));
         assertThat(Files.readAllLines(log.rawFile())).containsExactly("A1 에러", "A2");
     }
 
     @Test
     void windowWithoutRotatedFilesFetchesActiveOnly() throws Exception {
         OffsetDateTime t = OffsetDateTime.parse("2026-10-01T12:00:00+09:00");
-        FetchedLog log = fetcher.fetch(server("ssh-pw", "/logs/app.log", PATTERN), t, t.plusMinutes(5));
+        FetchedLog log = fetch(server("ssh-pw", "/logs/app.log", PATTERN), t, t.plusMinutes(5));
         assertThat(log.sources()).extracting(FetchedLog.Source::remotePath).containsExactly("/logs/app.log");
     }
 
     @Test
     void missingActiveFileWithoutRotatedMatchIsFetchFailedAndLeavesNoRawFile() {
-        Server s = server("ssh-pw", "/logs/nope.log", PATTERN);
+        Target s = server("ssh-pw", "/logs/nope.log", PATTERN);
         OffsetDateTime t = OffsetDateTime.parse("2026-10-01T12:00:00+09:00");
-        assertThatThrownBy(() -> fetcher.fetch(s, t, t.plusMinutes(5)))
-                .isInstanceOfSatisfying(ApiException.class, e -> {
-                    assertThat(e.getCode()).isEqualTo("FETCH_FAILED");
+        assertThatThrownBy(() -> fetch(s, t, t.plusMinutes(5)))
+                .isInstanceOfSatisfying(SshFailure.class, e -> {
                     assertThat(e.getMessage()).isEqualTo("Connected, but log file not found: /logs/nope.log"
                             + " (and no rotated file matches the window)");
                 });
         assertFetchFailed(server("ssh-pw", "/logs/nope.log", null), "Connected, but log file not found: /logs/nope.log");
-        assertThat(ROOT.resolve("raw").resolve(String.valueOf(s.getId())).toFile().list()).isEmpty();
+        assertThat(ROOT.resolve("raw").resolve(String.valueOf(s.server().getId()))
+                .resolve(String.valueOf(s.instance().getId())).toFile().list()).isEmpty();
     }
 
     @Test
@@ -206,10 +218,11 @@ class SftpLogFetcherIntegrationTest {
 
     @Test
     void changedHostKeyIsFetchFailed() throws Exception {
-        Server s = server("ssh-pw", "/logs/app.log", null);
-        fetcher.fetch(s, MIDNIGHT, MIDNIGHT.plusMinutes(1)); // pins the key
-        jdbc.update("UPDATE servers SET host_key_fingerprint = 'SHA256:somethingElse' WHERE id = ?", s.getId());
-        assertFetchFailed(servers.get(s.getId()), "Host key of " + sshd.getHost() + ":" + sshd.getMappedPort(2222)
+        Target s = server("ssh-pw", "/logs/app.log", null);
+        fetch(s, MIDNIGHT, MIDNIGHT.plusMinutes(1)); // pins the key
+        jdbc.update("UPDATE server_instances SET host_key_fingerprint = 'SHA256:somethingElse' WHERE id = ?",
+                s.instance().getId());
+        assertFetchFailed(target(s.server().getId()), "Host key of " + sshd.getHost() + ":" + sshd.getMappedPort(2222)
                 + " changed: trusted SHA256:somethingElse");
     }
 
@@ -219,11 +232,9 @@ class SftpLogFetcherIntegrationTest {
                 "Cannot decompress /logs/bad.2026-11-07.0.log.gz");
     }
 
-    void assertFetchFailed(Server s, String messageStart) {
-        assertThatThrownBy(() -> fetcher.fetch(s, MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5)))
-                .isInstanceOfSatisfying(ApiException.class, e -> {
-                    assertThat(e.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
-                    assertThat(e.getCode()).isEqualTo("FETCH_FAILED");
+    void assertFetchFailed(Target s, String messageStart) {
+        assertThatThrownBy(() -> fetch(s, MIDNIGHT.minusMinutes(5), MIDNIGHT.plusMinutes(5)))
+                .isInstanceOfSatisfying(SshFailure.class, e -> {
                     assertThat(e.getMessage()).startsWith(messageStart);
                 });
     }

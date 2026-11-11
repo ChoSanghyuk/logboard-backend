@@ -1,0 +1,41 @@
+2026-11-08T14:30:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1030 200 (node 2)
+2026-11-08T14:32:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1032 200 (node 2)
+2026-11-08T14:34:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1034 200 (node 2)
+2026-11-08T14:36:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1036 200 (node 2)
+2026-11-08T14:38:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1038 200 (node 2)
+2026-11-08T14:40:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1040 200 (node 2)
+2026-11-08T14:42:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1042 200 (node 2)
+2026-11-08T14:44:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1044 200 (node 2)
+2026-11-08T14:46:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1046 200 (node 2)
+2026-11-08T14:48:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1048 200 (node 2)
+2026-11-08T14:50:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1050 200 (node 2)
+2026-11-08T14:52:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1052 200 (node 2)
+2026-11-08T14:54:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1054 200 (node 2)
+2026-11-08T14:56:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1056 200 (node 2)
+2026-11-08T14:58:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/1058 200 (node 2)
+2026-11-08T15:00:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/2000 200 (node 2)
+2026-11-08T15:01:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/2001 200 (node 2)
+2026-11-08T15:02:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/2002 200 (node 2)
+2026-11-08T15:03:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-4] c.e.demo.OrderController                 : GET /orders/2003 200 (node 2)
+2026-11-08T15:04:00.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) payload size 300
+2026-11-08T15:04:09.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) payload size 309
+2026-11-08T15:04:18.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) payload size 318
+2026-11-08T15:04:27.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) payload size 327
+2026-11-08T15:04:36.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) payload size 336
+2026-11-08T15:04:47.123+09:00 ERROR 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.order.InventoryClient           : Reserving stock failed
+java.net.SocketTimeoutException: Read timed out after 3000 ms (inventory-api:8080)
+	at java.base/sun.nio.ch.NioSocketImpl.timedRead(NioSocketImpl.java:288) ~[na:na]
+	at com.example.demo.order.InventoryClient.reserve(InventoryClient.java:57) ~[classes/:na]
+	at com.example.demo.order.OrderService.place(OrderService.java:48) ~[classes/:na]
+	at com.example.demo.order.OrderController.create(OrderController.java:27) ~[classes/:na]
+	at java.base/java.lang.Thread.run(Thread.java:1583) ~[na:na]
+2026-11-08T15:04:50.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) retry 50
+2026-11-08T15:04:53.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) retry 53
+2026-11-08T15:04:56.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) retry 56
+2026-11-08T15:04:59.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-5] c.e.demo.OrderController                 : POST /orders (node 2) retry 59
+2026-11-08T15:05:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-6] c.e.demo.OrderController                 : GET /orders/3005 200 (node 2)
+2026-11-08T15:06:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-6] c.e.demo.OrderController                 : GET /orders/3006 200 (node 2)
+2026-11-08T15:07:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-6] c.e.demo.OrderController                 : GET /orders/3007 200 (node 2)
+2026-11-08T15:08:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-6] c.e.demo.OrderController                 : GET /orders/3008 200 (node 2)
+2026-11-08T15:09:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-6] c.e.demo.OrderController                 : GET /orders/3009 200 (node 2)
+2026-11-08T15:10:05.000+09:00  INFO 5151 --- [demo-app] [http-nio-8080-exec-6] c.e.demo.OrderController                 : GET /orders/3010 200 (node 2)

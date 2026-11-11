@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.logboard.server.AuthType;
+import com.logboard.server.InstanceUpsert;
 import com.logboard.server.ServerService;
 import com.logboard.server.ServerUpsert;
 import java.nio.file.Files;
@@ -115,8 +116,13 @@ class ErrorLogApiIntegrationTest {
     }
 
     long server(String name, String logPath, String rotatedPattern, String patternKey, String timezone) {
-        return servers.create(new ServerUpsert(name, sshd.getHost(), sshd.getMappedPort(2222), "logboard",
-                AuthType.PASSWORD, "ssh-pw", null, logPath, rotatedPattern, patternKey, null, timezone, "UTF-8")).id();
+        return servers.create(new ServerUpsert(name, List.of(new InstanceUpsert(null, sshd.getHost(),
+                sshd.getMappedPort(2222), logPath, "logboard", AuthType.PASSWORD, "ssh-pw", null)), rotatedPattern,
+                patternKey, null, timezone, "UTF-8")).id();
+    }
+
+    long instanceOf(long serverId) {
+        return servers.activeInstances(serverId).getFirst().getId();
     }
 
     ResultActions search(long serverId, String errorTime, String extra) throws Exception {
@@ -148,6 +154,11 @@ class ErrorLogApiIntegrationTest {
                 .andExpect(jsonPath("$.serverId").value(npeServer))
                 .andExpect(jsonPath("$.serverName").value("npe-api"))
                 .andExpect(jsonPath("$.serverTimezone").value("Asia/Seoul"))
+                .andExpect(jsonPath("$.instance.id").value(instanceOf(npeServer)))
+                .andExpect(jsonPath("$.instance.host").value(sshd.getHost()))
+                .andExpect(jsonPath("$.instance.sshPort").value(sshd.getMappedPort(2222)))
+                .andExpect(jsonPath("$.instance.logPath").value("/logs/npe.log"))
+                .andExpect(jsonPath("$.fetchFailures", hasSize(0)))
                 .andExpect(jsonPath("$.requestedTime").value("2026-11-08T05:32:00Z"))
                 .andExpect(jsonPath("$.createdAt").value(endsWith("Z")))
                 .andExpect(jsonPath("$.windowMin").value(5))
@@ -169,6 +180,8 @@ class ErrorLogApiIntegrationTest {
                 .andExpect(jsonPath("$.crop.lines[24].kind").value("STACK"))
                 .andExpect(jsonPath("$.crop.lines[25].kind").value("CONTEXT"))
                 .andExpect(jsonPath("$.candidates", hasSize(1)))
+                .andExpect(jsonPath("$.candidates[0].instanceId").value(instanceOf(npeServer)))
+                .andExpect(jsonPath("$.candidates[0].host").value(sshd.getHost()))
                 .andExpect(jsonPath("$.candidates[0].anchorLine").value(26))
                 .andExpect(jsonPath("$.candidates[0].time").value("2026-11-08T05:31:58.123Z"))
                 .andExpect(jsonPath("$.candidates[0].exceptionClass").value("java.lang.NullPointerException"))
@@ -177,7 +190,9 @@ class ErrorLogApiIntegrationTest {
 
         assertThat(Files.readAllLines(cropFile(id))).hasSize(35).element(20).asString().contains("ERROR");
         String raw = jdbc.queryForObject("SELECT raw_file_path FROM error_logs WHERE id = ?", String.class, id);
-        assertThat(raw).matches("raw/" + npeServer + "/\\d{14}-npe\\.log");
+        assertThat(raw).matches("raw/" + npeServer + "/" + instanceOf(npeServer) + "/\\d{14}-npe\\.log");
+        assertThat(jdbc.queryForObject("SELECT raw_files FROM error_logs WHERE id = ?", String.class, id))
+                .isEqualTo("{\"" + instanceOf(npeServer) + "\":{\"path\":\"" + raw + "\",\"totalLines\":45}}");
         assertThat(ROOT.resolve(raw)).exists();
         assertThat(Path.of(ROOT.resolve(raw) + ".meta.json")).exists();
     }
@@ -202,9 +217,13 @@ class ErrorLogApiIntegrationTest {
                 .andExpect(jsonPath("$.details.errorTime").value("2026-11-08T01:00:00Z"))
                 .andExpect(jsonPath("$.details.windowMin").value(2))
                 .andExpect(jsonPath("$.details.from").value("2026-11-08T00:58:00Z"))
-                .andExpect(jsonPath("$.details.to").value("2026-11-08T01:02:00Z"));
+                .andExpect(jsonPath("$.details.to").value("2026-11-08T01:02:00Z"))
+                .andExpect(jsonPath("$.details.searchedInstances[*].id").value(contains((int) instanceOf(npeServer))))
+                .andExpect(jsonPath("$.details.searchedInstances[0].logPath").value("/logs/npe.log"))
+                .andExpect(jsonPath("$.details.failures", hasSize(0)));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM error_logs", Integer.class)).isZero();
-        try (Stream<Path> files = Files.list(ROOT.resolve("raw").resolve(String.valueOf(npeServer)))) {
+        try (Stream<Path> files = Files.list(ROOT.resolve("raw").resolve(String.valueOf(npeServer))
+                .resolve(String.valueOf(instanceOf(npeServer))))) {
             assertThat(files).isEmpty(); // raw copy and meta removed
         }
     }
@@ -215,7 +234,13 @@ class ErrorLogApiIntegrationTest {
         search(missing, NPE_TIME, "")
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.code").value("FETCH_FAILED"))
-                .andExpect(jsonPath("$.message").value("Connected, but log file not found: /logs/nope.log"));
+                .andExpect(jsonPath("$.message").value(sshd.getHost() + ":" + sshd.getMappedPort(2222)
+                        + ": Connected, but log file not found: /logs/nope.log"))
+                .andExpect(jsonPath("$.details.failures", hasSize(1)))
+                .andExpect(jsonPath("$.details.failures[0].instanceId").value(instanceOf(missing)))
+                .andExpect(jsonPath("$.details.failures[0].logPath").value("/logs/nope.log"))
+                .andExpect(jsonPath("$.details.failures[0].message")
+                        .value("Connected, but log file not found: /logs/nope.log"));
     }
 
     @Test
@@ -309,7 +334,14 @@ class ErrorLogApiIntegrationTest {
         patchCrop(id, "{ \"expandBefore\": 0 }").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.fields.expandBefore").exists());
         patchCrop(id, "{ \"anchorLine\": 27 }").andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details.fields.anchorLine").value(endsWith("Candidates: [26]")));
+                .andExpect(jsonPath("$.details.fields.anchorLine")
+                        .value(endsWith("Candidates (instanceId:anchorLine): [" + instanceOf(npeServer) + ":26]")));
+        patchCrop(id, "{ \"instanceId\": " + instanceOf(npeServer) + " }").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.fields.instanceId").exists());
+        patchCrop(id, "{ \"anchorLine\": 26, \"instanceId\": 999999 }").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.fields.anchorLine").exists());
+        patchCrop(id, "{ \"anchorLine\": 26, \"instanceId\": " + instanceOf(npeServer) + " }")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.crop.anchorLine").value(26));
         patchCrop("20000101-001", "{ \"expandBefore\": 5 }").andExpect(status().isNotFound());
     }
 
@@ -347,11 +379,12 @@ class ErrorLogApiIntegrationTest {
 
     void insert(String id, long serverId, String status, String requestedTime, String createdAt) {
         jdbc.update("""
-                INSERT INTO error_logs (id, server_id, requested_time, window_min, raw_file_path, crop_start_line,
-                    crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, exception_class, status,
-                    created_at, updated_at)
-                VALUES (?, ?, ?::timestamptz, 5, 'raw', 1, 1, 1, 1, 1, '[]', 'X', ?, ?::timestamptz, ?::timestamptz)""",
-                id, serverId, requestedTime, status, createdAt, createdAt);
+                INSERT INTO error_logs (id, server_id, instance_id, requested_time, window_min, raw_file_path,
+                    crop_start_line, crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, raw_files,
+                    fetch_failures, exception_class, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?::timestamptz, 5, 'raw', 1, 1, 1, 1, 1, '[]', '{}', '[]', 'X', ?, ?::timestamptz,
+                    ?::timestamptz)""",
+                id, serverId, instanceOf(serverId), requestedTime, status, createdAt, createdAt);
     }
 
     @Test
@@ -371,6 +404,8 @@ class ErrorLogApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].serverTimezone").value("Europe/Berlin"))
                 .andExpect(jsonPath("$.items[3].serverTimezone").value("Asia/Seoul"))
                 .andExpect(jsonPath("$.items[0].requestedTime").value("2026-11-04T01:00:00Z"))
+                .andExpect(jsonPath("$.items[0].instance.id").value(instanceOf(multiServer)))
+                .andExpect(jsonPath("$.items[0].instance.logPath").value("/logs/multi.log"))
                 .andExpect(jsonPath("$.items[0].crop").doesNotExist());
         mvc.perform(get("/api/error-logs?status=CROPPED&status=CONFIRMED"))
                 .andExpect(jsonPath("$.items[*].id").value(contains("20261104-001", "20261102-001", "20261101-001")));

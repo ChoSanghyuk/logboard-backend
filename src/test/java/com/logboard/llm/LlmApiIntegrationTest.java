@@ -88,6 +88,7 @@ class LlmApiIntegrationTest {
     @Autowired AnalysisRunner runner;
 
     long serverId;
+    long instanceId;
 
     @BeforeEach
     void clean() {
@@ -98,9 +99,12 @@ class LlmApiIntegrationTest {
         jdbc.update("DELETE FROM llm_endpoints");
         jdbc.update("DELETE FROM prompt_templates");
         serverId = jdbc.queryForObject("""
-                INSERT INTO servers (name, host, username, auth_type, log_path, log_pattern_key, created_at, updated_at)
-                VALUES ('order-api', 'h', 'u', 'PASSWORD', '/a.log', 'SPRING_BOOT_3', now(), now()) RETURNING id""",
-                Long.class);
+                INSERT INTO servers (name, log_pattern_key, created_at, updated_at)
+                VALUES ('order-api', 'SPRING_BOOT_3', now(), now()) RETURNING id""", Long.class);
+        instanceId = jdbc.queryForObject("""
+                INSERT INTO server_instances (server_id, position, host, ssh_port, log_path, username, auth_type,
+                    created_at, updated_at)
+                VALUES (?, 0, 'h', 22, '/a.log', 'u', 'PASSWORD', now(), now()) RETURNING id""", Long.class, serverId);
     }
 
     String base() {
@@ -129,11 +133,11 @@ class LlmApiIntegrationTest {
 
     String errorLog(String id, String status) throws Exception {
         jdbc.update("""
-                INSERT INTO error_logs (id, server_id, requested_time, window_min, raw_file_path, crop_start_line,
-                    crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, exception_class, status,
-                    created_at, updated_at)
-                VALUES (?, ?, '2026-11-08T14:32:00+09:00', 5, 'raw/x.log', 1, 2, 1, 2, 2, '[]',
-                    'java.lang.NullPointerException', ?, now(), now())""", id, serverId, status);
+                INSERT INTO error_logs (id, server_id, instance_id, requested_time, window_min, raw_file_path,
+                    crop_start_line, crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, raw_files,
+                    fetch_failures, exception_class, status, created_at, updated_at)
+                VALUES (?, ?, ?, '2026-11-08T14:32:00+09:00', 5, 'raw/x.log', 1, 2, 1, 2, 2, '[]', '{}', '[]',
+                    'java.lang.NullPointerException', ?, now(), now())""", id, serverId, instanceId, status);
         Files.createDirectories(ROOT.resolve("errors"));
         Files.writeString(ROOT.resolve("errors").resolve(id + ".log"), CROP);
         return id;
@@ -290,7 +294,7 @@ class LlmApiIntegrationTest {
         assertThat(mvc.perform(get("/api/error-logs/" + log)).andReturn().getResponse().getContentAsString())
                 .contains("\"latestAnalysis\":null");
         long ep = endpoint("vllm", "");
-        long pr = prompt("triage", "Server {{serverName}} at {{errorTime}}: {{exceptionClass}}\\n{{errorLog}}");
+        long pr = prompt("triage", "Server {{serverName}} ({{host}}) at {{errorTime}}: {{exceptionClass}}\\n{{errorLog}}");
         llm.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post(PATH).willReturn(okJson(reply("## Cause"))));
 
         long analysis = id(analyze(log, ep, pr)
@@ -313,7 +317,7 @@ class LlmApiIntegrationTest {
         llm.verify(postRequestedFor(urlEqualTo(PATH))
                 .withoutHeader("Authorization")
                 .withRequestBody(matchingJsonPath("$.messages[0].content", com.github.tomakehurst.wiremock.client.WireMock
-                        .equalTo("Server order-api at 2026-11-08T14:32:00+09:00: java.lang.NullPointerException\n" + CROP))));
+                        .equalTo("Server order-api (h) at 2026-11-08T14:32:00+09:00: java.lang.NullPointerException\n" + CROP))));
         mvc.perform(get("/api/error-logs/" + log))
                 .andExpect(jsonPath("$.status").value("ANALYZED"))
                 .andExpect(jsonPath("$.latestAnalysis.id").value(analysis))

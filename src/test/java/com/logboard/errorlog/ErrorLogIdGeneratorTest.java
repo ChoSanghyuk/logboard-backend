@@ -40,6 +40,7 @@ class ErrorLogIdGeneratorTest {
     @Autowired JdbcTemplate jdbc;
 
     long serverId;
+    long instanceId;
 
     @BeforeEach
     void setUp() {
@@ -47,8 +48,12 @@ class ErrorLogIdGeneratorTest {
         jdbc.update("DELETE FROM error_log_seq");
         jdbc.update("DELETE FROM servers");
         serverId = jdbc.queryForObject("""
-                INSERT INTO servers (name, host, username, auth_type, log_path, log_pattern_key, created_at, updated_at)
-                VALUES ('s', 'h', 'u', 'PASSWORD', '/a.log', 'SPRING_BOOT_3', now(), now()) RETURNING id""", Long.class);
+                INSERT INTO servers (name, log_pattern_key, created_at, updated_at)
+                VALUES ('s', 'SPRING_BOOT_3', now(), now()) RETURNING id""", Long.class);
+        instanceId = jdbc.queryForObject("""
+                INSERT INTO server_instances (server_id, position, host, ssh_port, log_path, username, auth_type,
+                    created_at, updated_at)
+                VALUES (?, 0, 'h', 22, '/a.log', 'u', 'PASSWORD', now(), now()) RETURNING id""", Long.class, serverId);
     }
 
     /** One "create": a transaction that takes an ID and inserts the error log row with it. */
@@ -56,9 +61,11 @@ class ErrorLogIdGeneratorTest {
         return tx.execute(s -> {
             String id = ids.next(DAY);
             jdbc.update("""
-                    INSERT INTO error_logs (id, server_id, requested_time, window_min, raw_file_path, crop_start_line,
-                        crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, status, created_at, updated_at)
-                    VALUES (?, ?, now(), 5, 'raw', 1, 1, 1, 1, 1, '[]', 'CROPPED', now(), now())""", id, serverId);
+                    INSERT INTO error_logs (id, server_id, instance_id, requested_time, window_min, raw_file_path,
+                        crop_start_line, crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, raw_files,
+                        fetch_failures, status, created_at, updated_at)
+                    VALUES (?, ?, ?, now(), 5, 'raw', 1, 1, 1, 1, 1, '[]', '{}', '[]', 'CROPPED', now(), now())""",
+                    id, serverId, instanceId);
             return id;
         });
     }

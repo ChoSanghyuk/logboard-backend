@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.logboard.common.SecretCipher;
 import com.logboard.common.LogboardProperties;
+import com.logboard.server.ConnectionTestResult.InstanceTestResult;
 import java.net.ServerSocket;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
@@ -20,9 +21,8 @@ class SshConnectorTest {
         ssh.stop();
     }
 
-    Server server(String host, int port) {
-        Server s = new Server();
-        s.setName("t");
+    ServerInstance server(String host, int port) {
+        ServerInstance s = new ServerInstance();
         s.setHost(host);
         s.setSshPort(port);
         s.setUsername("u");
@@ -35,7 +35,7 @@ class SshConnectorTest {
     @Test
     void silentServerTimesOut() throws Exception {
         try (ServerSocket silent = new ServerSocket(0)) { // accepts TCP (backlog) but never speaks SSH
-            ConnectionTestResult r = ssh.test(server("127.0.0.1", silent.getLocalPort()));
+            InstanceTestResult r = ssh.test(server("127.0.0.1", silent.getLocalPort()));
             assertThat(r.ok()).isFalse();
             assertThat(r.logFileFound()).isFalse();
             assertThat(r.message()).startsWith("Timed out after 1s");
@@ -48,14 +48,35 @@ class SshConnectorTest {
         try (ServerSocket s = new ServerSocket(0)) {
             port = s.getLocalPort();
         }
-        ConnectionTestResult r = ssh.test(server("127.0.0.1", port));
+        InstanceTestResult r = ssh.test(server("127.0.0.1", port));
         assertThat(r.ok()).isFalse();
         assertThat(r.message()).isEqualTo("Connection refused by 127.0.0.1:" + port);
     }
 
     @Test
+    void inParallelKeepsOrderAndWaitsForAll() {
+        java.util.List<Integer> in = java.util.stream.IntStream.range(0, 20).boxed().toList();
+        assertThat(SshConnector.inParallel(in, i -> {
+            try {
+                Thread.sleep(20 - i);
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+            return i * 2;
+        })).containsExactlyElementsOf(in.stream().map(i -> i * 2).toList());
+    }
+
+    @Test
+    void inParallelRethrowsRuntimeExceptions() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> SshConnector.inParallel(java.util.List.of(1, 2), i -> {
+            if (i == 2) throw new IllegalArgumentException("boom");
+            return i;
+        })).isInstanceOf(IllegalArgumentException.class).hasMessage("boom");
+    }
+
+    @Test
     void unknownHost() {
-        ConnectionTestResult r = ssh.test(server("no-such-host.invalid", 22));
+        InstanceTestResult r = ssh.test(server("no-such-host.invalid", 22));
         assertThat(r.ok()).isFalse();
         assertThat(r.message()).isEqualTo("Unknown host: no-such-host.invalid");
     }

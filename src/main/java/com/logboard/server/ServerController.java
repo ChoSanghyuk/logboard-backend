@@ -46,16 +46,19 @@ public class ServerController {
         service.delete(id);
     }
 
-    /** SSH connect + SFTP stat of logPath. Always 200; failures are reported as {@code ok=false}. */
+    /** SSH connect + SFTP stat of logPath, for every instance in parallel. Always 200; failures are {@code ok=false}. */
     @PostMapping("/servers/{id}/test")
     public ConnectionTestResult test(@PathVariable long id) {
         return service.test(id);
     }
 
-    /** Forget the trusted SSH host key (e.g. after the server was reinstalled). The next /test or fetch pins it again. */
-    @PostMapping("/servers/{id}/reset-host-key")
-    public ServerDto resetHostKey(@PathVariable long id) {
-        return service.resetHostKey(id);
+    /**
+     * Forget the instance's trusted SSH host key (e.g. after that machine was reinstalled). The next /test or fetch
+     * pins it again. 404 if the server or instance is unknown or deleted.
+     */
+    @PostMapping("/servers/{id}/instances/{instanceId}/reset-host-key")
+    public ServerDto resetHostKey(@PathVariable long id, @PathVariable long instanceId) {
+        return service.resetHostKey(id, instanceId);
     }
 
     @GetMapping("/log-patterns")

@@ -51,7 +51,7 @@ public class LogboardMcpTools {
     record QueueItem(String id, String serverName, String exceptionClass, String exceptionMessage,
                      OffsetDateTime createdAt, String note) {}
 
-    record ServerRef(String name, String host) {}
+    record ServerRef(String name, String host, String logPath) {}
 
     record AnalysisRef(String prompt, String reply) {}
 
@@ -89,7 +89,8 @@ public class LogboardMcpTools {
 
     @McpTool(name = "get_error_log", description = """
             Get everything Logboard knows about one error: the cropped log (the exception's stack trace with \
-            surrounding lines, the main evidence), server, errorTime (in the server's timezone), exception class \
+            surrounding lines, the main evidence), server {name, host, logPath} (host and log file of the node the \
+            error was found on), errorTime (in the server's timezone), exception class \
             and message, status, the user's note, and the latest successful LLM analysis {prompt, reply} (null if \
             none). Works for any status. errorId format: YYYYMMDD-NNN, e.g. 20261108-001.""")
     public CallToolResult getErrorLog(
@@ -101,7 +102,8 @@ public class LogboardMcpTools {
         ErrorLogView view = tx.execute(s -> errorLogs.findWithServerById(errorId.strip()).map(e -> {
             AnalysisRef analysis = analyses.findFirstByErrorLogIdAndStatusOrderByCreatedAtDescIdDesc(e.getId(),
                     AnalysisStatus.DONE).map(a -> new AnalysisRef(a.getRenderedPrompt(), a.getReply())).orElse(null);
-            return new ErrorLogView(e.getId(), new ServerRef(e.getServer().getName(), e.getServer().getHost()),
+            return new ErrorLogView(e.getId(), new ServerRef(e.getServer().getName(), e.getInstance().getHost(),
+                            e.getInstance().getLogPath()),
                     e.getRequestedTime().atZoneSameInstant(ZoneId.of(e.getServer().getTimezone())).toOffsetDateTime(),
                     e.getExceptionClass(), e.getExceptionMessage(), e.getStatus().name(), e.getNote(),
                     errorLogService.cropText(e.getId()), analysis);

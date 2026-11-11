@@ -98,20 +98,25 @@ class McpIntegrationTest {
     }
 
     long server(String name, String host) {
-        return jdbc.queryForObject("""
-                INSERT INTO servers (name, host, username, auth_type, log_path, log_pattern_key, created_at, updated_at)
-                VALUES (?, ?, 'u', 'PASSWORD', '/a.log', 'SPRING_BOOT_3', now(), now()) RETURNING id""",
-                Long.class, name, host);
+        long serverId = jdbc.queryForObject("""
+                INSERT INTO servers (name, log_pattern_key, created_at, updated_at)
+                VALUES (?, 'SPRING_BOOT_3', now(), now()) RETURNING id""", Long.class, name);
+        jdbc.update("""
+                INSERT INTO server_instances (server_id, position, host, ssh_port, log_path, username, auth_type,
+                    created_at, updated_at)
+                VALUES (?, 0, ?, 22, '/var/log/' || ? || '.log', 'u', 'PASSWORD', now(), now())""", serverId, host, name);
+        return serverId;
     }
 
     void errorLog(String id, long serverId, String status, String note, String createdAt) throws Exception {
         jdbc.update("""
-                INSERT INTO error_logs (id, server_id, requested_time, window_min, raw_file_path, crop_start_line,
-                    crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, exception_class,
-                    exception_message, status, note, created_at, updated_at)
-                VALUES (?, ?, '2026-11-08T05:32:00Z', 5, 'raw/x.log', 1, 3, 1, 3, 3, '[]',
+                INSERT INTO error_logs (id, server_id, instance_id, requested_time, window_min, raw_file_path,
+                    crop_start_line, crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, raw_files,
+                    fetch_failures, exception_class, exception_message, status, note, created_at, updated_at)
+                VALUES (?, ?, (SELECT min(id) FROM server_instances WHERE server_id = ?), '2026-11-08T05:32:00Z', 5,
+                    'raw/x.log', 1, 3, 1, 3, 3, '[]', '{}', '[]',
                     'java.lang.NullPointerException', 'name is null', ?, ?, ?::timestamptz, now())""",
-                id, serverId, status, note, createdAt);
+                id, serverId, serverId, status, note, createdAt);
         Files.createDirectories(ROOT.resolve("errors"));
         Files.writeString(ROOT.resolve("errors").resolve(id + ".log"), CROP);
     }
@@ -170,6 +175,7 @@ class McpIntegrationTest {
         assertThat(JsonPath.<String>read(log, "$.id")).isEqualTo("20261108-002");
         assertThat(JsonPath.<String>read(log, "$.server.name")).isEqualTo("order-api");
         assertThat(JsonPath.<String>read(log, "$.server.host")).isEqualTo("10.0.0.5");
+        assertThat(JsonPath.<String>read(log, "$.server.logPath")).isEqualTo("/var/log/order-api.log");
         assertThat(JsonPath.<String>read(log, "$.errorTime")).isEqualTo("2026-11-08T14:32:00+09:00"); // server tz
         assertThat(JsonPath.<String>read(log, "$.exceptionClass")).isEqualTo("java.lang.NullPointerException");
         assertThat(JsonPath.<String>read(log, "$.message")).isEqualTo("name is null");

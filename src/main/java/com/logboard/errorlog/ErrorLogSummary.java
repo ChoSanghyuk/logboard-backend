@@ -12,6 +12,7 @@ public record ErrorLogSummary(
         @Schema(requiredMode = REQUIRED) String serverName,
         @Schema(requiredMode = REQUIRED, description = "IANA timezone of the server (also for soft-deleted servers), "
                 + "for displaying times", example = "Asia/Seoul") String serverTimezone,
+        @Schema(requiredMode = REQUIRED, description = "Instance the crop comes from") InstanceRef instance,
         @Schema(requiredMode = REQUIRED) OffsetDateTime requestedTime,
         @Schema(description = "Top-level exception class; null for an ERROR entry without a trace") String exceptionClass,
         String exceptionMessage,
@@ -20,7 +21,7 @@ public record ErrorLogSummary(
 
     static ErrorLogSummary of(ErrorLog e) {
         return new ErrorLogSummary(e.getId(), e.getServer().getId(), e.getServer().getName(), e.getServer().getTimezone(),
-                e.getRequestedTime(), e.getExceptionClass(), e.getExceptionMessage(), e.getStatus(),
+                InstanceRef.of(e.getInstance()), e.getRequestedTime(), e.getExceptionClass(), e.getExceptionMessage(), e.getStatus(),
                 e.getCreatedAt());
     }
 }

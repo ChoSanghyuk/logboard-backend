@@ -60,6 +60,7 @@ class ResolutionApiIntegrationTest {
     @Autowired ErrorLogService service;
 
     long serverId;
+    long instanceId;
     int seq;
 
     @BeforeEach
@@ -67,17 +68,22 @@ class ResolutionApiIntegrationTest {
         jdbc.update("DELETE FROM error_logs");
         jdbc.update("DELETE FROM servers");
         serverId = jdbc.queryForObject("""
-                INSERT INTO servers (name, host, username, auth_type, log_path, log_pattern_key, created_at, updated_at)
-                VALUES ('order-api', 'h', 'u', 'PASSWORD', '/a.log', 'SPRING_BOOT_3', now(), now()) RETURNING id""",
-                Long.class);
+                INSERT INTO servers (name, log_pattern_key, created_at, updated_at)
+                VALUES ('order-api', 'SPRING_BOOT_3', now(), now()) RETURNING id""", Long.class);
+        instanceId = jdbc.queryForObject("""
+                INSERT INTO server_instances (server_id, position, host, ssh_port, log_path, username, auth_type,
+                    created_at, updated_at)
+                VALUES (?, 0, 'h', 22, '/a.log', 'u', 'PASSWORD', now(), now()) RETURNING id""", Long.class, serverId);
     }
 
     String errorLog(ErrorStatus status) throws Exception {
         String id = String.format("20261108-%03d", ++seq);
         jdbc.update("""
-                INSERT INTO error_logs (id, server_id, requested_time, window_min, raw_file_path, crop_start_line,
-                    crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, status, created_at, updated_at)
-                VALUES (?, ?, now(), 5, 'raw/x.log', 1, 1, 1, 1, 1, '[]', ?, now(), now())""", id, serverId, status.name());
+                INSERT INTO error_logs (id, server_id, instance_id, requested_time, window_min, raw_file_path,
+                    crop_start_line, crop_end_line, anchor_line, anchor_end_line, total_lines, candidates, raw_files,
+                    fetch_failures, status, created_at, updated_at)
+                VALUES (?, ?, ?, now(), 5, 'raw/x.log', 1, 1, 1, 1, 1, '[]', '{}', '[]', ?, now(), now())""",
+                id, serverId, instanceId, status.name());
         Files.createDirectories(ROOT.resolve("errors"));
         Files.writeString(ROOT.resolve("errors").resolve(id + ".log"), "line\n");
         return id;
@@ -166,6 +172,7 @@ class ResolutionApiIntegrationTest {
         assertThat(list).contains("\"exceptionClass\":null");
         String servers = mvc.perform(get("/api/servers")).andReturn().getResponse().getContentAsString();
         assertThat(servers).contains("\"rotatedPattern\":null", "\"customLogRegex\":null", "\"hostKeyFingerprint\":null");
+        assertThat(body).contains("\"fetchFailures\":[]");
     }
 
     @Test

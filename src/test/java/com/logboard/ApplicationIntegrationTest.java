@@ -75,8 +75,17 @@ class ApplicationIntegrationTest {
                 .andExpect(jsonPath(s + "ServerDto.properties.rotatedPattern.type")
                         .value(org.hamcrest.Matchers.contains("string", "null")))
                 .andExpect(jsonPath(s + "ServerDto.properties.id.type").value("integer"))
-                .andExpect(jsonPath(s + "ConnectionTestResult.properties.logFileSize.type")
+                .andExpect(jsonPath(s + "InstanceTestResult.properties.logFileSize.type")
                         .value(org.hamcrest.Matchers.contains("integer", "null")))
+                .andExpect(jsonPath(s + "InstanceRef.required")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("id", "host", "sshPort", "logPath")))
+                .andExpect(jsonPath(s + "FetchFailure.required").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        "instanceId", "host", "sshPort", "logPath", "message")))
+                .andExpect(jsonPath(s + "ErrorLogDetail.properties.fetchFailures.type").value("array"))
+                .andExpect(jsonPath(s + "ErrorLogDetail.properties.instance['$ref']")
+                        .value("#/components/schemas/InstanceRef"))
+                .andExpect(jsonPath(s + "CandidateDto.properties.instanceId.type").value("integer"))
+                .andExpect(jsonPath(s + "CandidateDto.properties.host.type").value("string"))
                 .andExpect(jsonPath(s + "ErrorLogDetail.properties.exceptionClass.type")
                         .value(org.hamcrest.Matchers.contains("string", "null")))
                 .andExpect(jsonPath(s + "ErrorLogDetail.properties.note.type")
@@ -95,8 +104,10 @@ class ApplicationIntegrationTest {
                 .andExpect(jsonPath(s + "LlmTestResult.required")
                         .value(org.hamcrest.Matchers.containsInAnyOrder("ok", "message", "latencyMs")))
                 .andExpect(jsonPath(s + "ErrorLogSummary.required")
-                        .value(org.hamcrest.Matchers.hasItems("id", "status", "createdAt", "serverName", "serverTimezone")))
-                .andExpect(jsonPath(s + "ErrorLogDetail.required").value(org.hamcrest.Matchers.hasItem("serverTimezone")))
+                        .value(org.hamcrest.Matchers.hasItems("id", "status", "createdAt", "serverName", "serverTimezone",
+                                "instance")))
+                .andExpect(jsonPath(s + "ErrorLogDetail.required").value(org.hamcrest.Matchers.hasItems("serverTimezone",
+                        "instance", "fetchFailures")))
                 .andExpect(jsonPath(s + "ErrorLogSummary.properties.serverTimezone.type").value("string"))
                 .andExpect(jsonPath("$.paths['/api/error-logs/{id}/terminate'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/error-logs/{id}/dev-required'].post").exists())
@@ -119,16 +130,21 @@ class ApplicationIntegrationTest {
                 .andExpect(jsonPath(s + "ErrorLogDetail.properties.latestAnalysis.description")
                         .value("Newest analysis (any status); `null` if none (always present)"))
                 .andExpect(jsonPath(s + "ServerDto.required")
-                        .value(org.hamcrest.Matchers.hasItems("hostKeyFingerprint", "rotatedPattern")))
-                .andExpect(jsonPath(s + "ServerDto.properties.hostKeyFingerprint.type")
+                        .value(org.hamcrest.Matchers.hasItems("instances", "rotatedPattern")))
+                .andExpect(jsonPath(s + "InstanceDto.required").value(org.hamcrest.Matchers.hasItem("hostKeyFingerprint")))
+                .andExpect(jsonPath(s + "InstanceDto.properties.hostKeyFingerprint.type")
                         .value(org.hamcrest.Matchers.contains("string", "null")))
                 .andExpect(jsonPath(s + "AnalysisDto.required")
                         .value(org.hamcrest.Matchers.hasItems("reply", "errorMessage", "finishedAt")))
                 .andExpect(jsonPath(s + "CandidateDto.required").value(org.hamcrest.Matchers.hasItem("exceptionClass")))
-                .andExpect(jsonPath(s + "ConnectionTestResult.required").value(org.hamcrest.Matchers.hasItem("logFileSize")))
+                .andExpect(jsonPath(s + "InstanceTestResult.required").value(org.hamcrest.Matchers.hasItem("logFileSize")))
+                .andExpect(jsonPath(s + "CropRequest.required").doesNotExist())
                 // request DTOs unchanged: optional fields stay optional
                 .andExpect(jsonPath(s + "ServerUpsert.required")
                         .value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("rotatedPattern"))))
+                // nested request DTO (ServerUpsert.instances) is a request schema too
+                .andExpect(jsonPath(s + "InstanceUpsert.required").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        "host", "logPath", "username", "authType")))
                 .andExpect(jsonPath(s + "LlmEndpointUpsert.required")
                         .value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("apiKey"))));
     }

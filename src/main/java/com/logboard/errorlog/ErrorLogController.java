@@ -32,10 +32,12 @@ public class ErrorLogController {
 
     @PostMapping("/search")
     @ResponseStatus(HttpStatus.CREATED)
-    @ApiResponse(responseCode = "201", description = "Exception found and cropped (status CROPPED)")
-    @ApiResponse(responseCode = "404", description = "NO_EXCEPTION_FOUND (details: errorTime, windowMin, from, to) "
-            + "or NOT_FOUND (server)", content = @Content(schema = @Schema(implementation = ApiError.class)))
-    @ApiResponse(responseCode = "502", description = "FETCH_FAILED",
+    @ApiResponse(responseCode = "201", description = "Exception found and cropped (status CROPPED). Instances that "
+            + "could not be read are listed in fetchFailures")
+    @ApiResponse(responseCode = "404", description = "NO_EXCEPTION_FOUND (details: errorTime, windowMin, from, to, "
+            + "searchedInstances: InstanceRef[], failures: FetchFailure[]) or NOT_FOUND (server)",
+            content = @Content(schema = @Schema(implementation = ApiError.class)))
+    @ApiResponse(responseCode = "502", description = "FETCH_FAILED: every instance failed (details.failures: FetchFailure[])",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ErrorLogDetail search(@Valid @RequestBody SearchRequest body) {
         return service.search(body);
@@ -61,6 +63,8 @@ public class ErrorLogController {
 
     @PatchMapping("/{id}/crop")
     @ApiResponse(responseCode = "200", description = "Re-cropped")
+    @ApiResponse(responseCode = "400", description = "VALIDATION_FAILED (fields.anchorLine: not a candidate; "
+            + "fields.instanceId: without anchorLine)", content = @Content(schema = @Schema(implementation = ApiError.class)))
     @ApiResponse(responseCode = "409", description = "INVALID_STATUS (not CROPPED)",
             content = @Content(schema = @Schema(implementation = ApiError.class)))
     public ErrorLogDetail crop(@PathVariable String id, @Valid @RequestBody CropRequest body) {

@@ -5,13 +5,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Replaces {@code {{errorLog}}}, {@code {{serverName}}}, {@code {{errorTime}}}, {@code {{exceptionClass}}} in one
+ * Replaces {@code {{errorLog}}}, {@code {{serverName}}}, {@code {{host}}}, {@code {{errorTime}}}, {@code {{exceptionClass}}} in one
  * pass, so placeholder-like text inside the substituted log is left alone. Other {{…}} text is kept as is.
  */
 final class PromptRenderer {
 
     static final String ERROR_LOG = "{{errorLog}}";
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(errorLog|serverName|errorTime|exceptionClass)}}");
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(errorLog|serverName|host|errorTime|exceptionClass)}}");
 
     private PromptRenderer() {}
 

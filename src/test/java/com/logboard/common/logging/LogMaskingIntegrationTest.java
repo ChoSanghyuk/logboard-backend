@@ -62,6 +62,21 @@ class LogMaskingIntegrationTest {
 
         @Autowired SecretCipher cipher;
         @Autowired LogboardProperties props;
+        @Autowired com.logboard.server.ServerService servers;
+
+        @Test
+        void everyInstanceSecretIsMasked(CapturedOutput output) {
+            String pw1 = "node1-Secret-pw-1234";
+            String pw2 = "node2-Other-pw-5678";
+            servers.create(new com.logboard.server.ServerUpsert("masked-" + System.nanoTime(), java.util.List.of(
+                    new com.logboard.server.InstanceUpsert(null, "h1", 22, "/a.log", "u1",
+                            com.logboard.server.AuthType.PASSWORD, pw1, null),
+                    new com.logboard.server.InstanceUpsert(null, "h2", 22, "/a.log", "u2",
+                            com.logboard.server.AuthType.KEY, null, pw2)),
+                    null, "SPRING_BOOT_3", null, null, null));
+            log.info("node 1 uses {} and node 2 uses {}", pw1, pw2);
+            assertThat(output.getAll()).contains("node 1 uses **** and node 2 uses ****").doesNotContain(pw1, pw2);
+        }
 
         @Test
         void secretsAreMasked(CapturedOutput output) {

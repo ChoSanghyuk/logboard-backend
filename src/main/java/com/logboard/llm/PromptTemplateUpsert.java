@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 
 public record PromptTemplateUpsert(
         @NotBlank @Size(max = 100) String name,
-        @Schema(description = "Must contain {{errorLog}}. Optional: {{serverName}}, {{errorTime}}, {{exceptionClass}}")
+        @Schema(description = "Must contain {{errorLog}}. Optional: {{serverName}}, {{host}}, {{errorTime}}, {{exceptionClass}}")
                 @NotBlank String content,
         @JsonProperty("isDefault") @Schema(defaultValue = "false") Boolean isDefault) {
 
